@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>야간반납 각서 자동생성</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --blue:#2563eb; --blue-dark:#1d4ed8; --bg:#f3f4f6; --card:#ffffff;
+    --text:#111827; --muted:#6b7280; --border:#d1d5db; --danger:#dc2626; --danger-bg:#fee2e2;
+    --ok:#16a34a; --ok-bg:#dcfce7;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;}
+  header{background:var(--blue);color:#fff;padding:16px 20px;}
+  header h1{margin:0;font-size:20px;}
+  header p{margin:4px 0 0;font-size:13px;opacity:.9;}
+  nav{display:flex;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;}
+  nav button{flex:1;min-width:110px;padding:14px 8px;border:none;background:none;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;}
+  nav button.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:bold;background:#eff6ff;}
+  main{max-width:1000px;margin:0 auto;padding:16px;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;}
+  .card h2{margin-top:0;font-size:16px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  input[type=text],input[type=date],select,textarea{
+    width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:#fff;color:var(--text);
+  }
+  button.btn{background:var(--blue);color:#fff;border:none;padding:10px 16px;border-radius:6px;font-size:14px;cursor:pointer;}
+  button.btn:hover{background:var(--blue-dark);}
+  button.btn.secondary{background:#fff;color:var(--blue);border:1px solid var(--blue);}
+  button.btn.danger{background:#fff;color:var(--danger);border:1px solid var(--danger);}
+  button.btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;}
+  th,td{border:1px solid var(--border);padding:6px 8px;text-align:center;}
+  th{background:#f9fafb;}
+  tr:nth-child(even) td{background:#fafafa;}
+  .note{font-size:12px;color:var(--muted);line-height:1.6;background:#f9fafb;border-left:3px solid var(--blue);padding:8px 12px;border-radius:4px;margin-top:10px;}
+  .warn{font-size:13px;color:#92400e;background:#fffbeb;border-left:3px solid #f59e0b;padding:8px 12px;border-radius:4px;margin-top:10px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;}
+  .badge.ok{background:var(--ok-bg);color:var(--ok);}
+  .badge.dup{background:var(--danger-bg);color:var(--danger);}
+  .small{font-size:12px;color:var(--muted);}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+
+  /* 각서 미리보기 (실제 인쇄/저장 대상) */
+  .doc-page{background:#fff;border:1px solid var(--border);padding:40px;margin:0 auto 24px;max-width:760px;font-size:14px;line-height:1.7;}
+  .doc-page h3{text-align:center;font-size:19px;margin-bottom:24px;}
+  .doc-meta{margin-bottom:14px;}
+  .doc-meta div{margin-bottom:4px;}
+  .doc-table{width:100%;border-collapse:collapse;margin:16px 0;}
+  .doc-table th,.doc-table td{border:1px solid #333;padding:6px;font-size:12.5px;}
+  .doc-table th{background:#f0f0f0;}
+  .doc-footer{margin-top:28px;}
+  .doc-footer div{margin-bottom:4px;}
+  .doc-page-title{font-weight:bold;margin:0 0 8px;color:var(--muted);font-size:12px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *{visibility:visible;}
+    #printArea{position:absolute;top:0;left:0;width:100%;}
+    .doc-page{border:none;margin:0;padding:20px;page-break-after:always;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>야간반납 각서 자동생성</h1>
+  <p>설치·서버 없이 브라우저에서 바로 사용하는 버전 · 담당자별 입력 → 취합 → 각서 자동생성</p>
+</header>
+
+<nav>
+  <button data-tab="tab-input" class="active">① 입력</button>
+  <button data-tab="tab-merge">② 가져오기·취합</button>
+  <button data-tab="tab-doc">③ 각서 생성</button>
+  <button data-tab="tab-settings">설정</button>
+</nav>
+
+<main>
+
+  <!-- ================= 탭1: 입력 ================= -->
+  <section id="tab-input" class="tab active">
+    <div class="card">
+      <h2>오늘 반납 항목 입력</h2>
+      <p class="small">담당자 각자 자신의 브라우저에서 입력하세요. 입력한 내용은 이 브라우저에만 자동 저장됩니다(다른 사람 화면과 공유되지 않음).</p>
+      <div class="grid">
+        <div>
+          <label>등록자(담당자명) *</label>
+          <input type="text" id="in-registrant" placeholder="예: 홍길동">
+        </div>
+        <div>
+          <label>날짜 *</label>
+          <input type="date" id="in-date">
+        </div>
+        <div>
+          <label>선사 *</label>
+          <input type="text" id="in-carrier" placeholder="예: SKR">
+        </div>
+        <div>
+          <label>컨테이너 번호 *</label>
+          <input type="text" id="in-container" placeholder="예: SKRHALU2026582">
+        </div>
+        <div>
+          <label>사이즈</label>
+          <input type="text" id="in-size" placeholder="예: 20D / 40RE">
+        </div>
+        <div>
+          <label>상차지</label>
+          <input type="text" id="in-loadloc" placeholder="예: 신선대">
+        </div>
+        <div>
+          <label>하차지</label>
+          <input type="text" id="in-unloadloc" placeholder="예: 신선대">
+        </div>
+        <div>
+          <label>내품</label>
+          <input type="text" id="in-cargo" placeholder="예: HAIR BAND">
+        </div>
+        <div>
+          <label>운행여부</label>
+          <input type="text" id="in-runtype" placeholder="예: 당사운송분">
+        </div>
+        <div>
+          <label>요청운송사</label>
+          <input type="text" id="in-requester" placeholder="예: 국양">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-add-entry">+ 목록에 추가</button>
+        <button class="btn secondary" id="btn-clear-form">입력 지우기</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0;">내가 입력한 오늘 리스트 (<span id="my-count">0</span>건)</h2>
+        <div class="btn-row" style="margin:0;">
+          <button class="btn" id="btn-send-sheet">구글시트로 전송</button>
+          <button class="btn secondary" id="btn-export-json">내보내기 (JSON)</button>
+          <button class="btn secondary" id="btn-export-xlsx-my">내보내기 (엑셀 .xlsx)</button>
+          <button class="btn secondary" id="btn-export-csv-my">내보내기 (CSV)</button>
+        </div>
+      </div>
+      <p class="small"><b>구글시트로 전송</b>이 설정되어 있으면 그 버튼 하나로 취합 담당자에게 바로 전달됩니다 (설정 탭 참고). 설정하지 않았다면 <b>JSON 내보내기</b> 파일을 카카오톡/메일 등으로 직접 전송하세요.</p>
+      <div id="sheet-send-result"></div>
+      <div id="my-table-wrap"><p class="small">아직 입력한 항목이 없습니다.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= 탭2: 가져오기/취합 ================= -->
+  <section id="tab-merge" class="tab">
+    <div class="card">
+      <h2>구글시트에서 자동 취합 (권장)</h2>
+      <p class="small">설정 탭에 구글시트 연동 URL을 등록해두면, 담당자들이 파일을 보내지 않아도 아래 버튼 한 번으로 그동안 접수된 모든 항목을 가져올 수 있습니다.</p>
+      <div class="btn-row">
+        <button class="btn" id="btn-refresh-sheet">구글시트에서 새로고침</button>
+      </div>
+      <div id="sheet-refresh-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>담당자들이 보낸 파일 가져오기 (구글시트 연동을 안 쓸 경우)</h2>
+      <p class="small">여러 담당자가 보낸 JSON 파일을 한 번에 선택하면 자동으로 합쳐집니다. 엑셀(.xlsx)이나 CSV 파일도 가져올 수 있습니다.
+      (엑셀/CSV는 '날짜'와 '컨테이너' 등 열 제목이 있는 표 형태여야 자동으로 인식됩니다.)</p>
+      <p class="note">엑셀(.xlsx) 가져오기/내보내기 기능은 외부 변환 라이브러리를 사용하므로, 이 페이지를 처음 열 때 인터넷 연결이 필요합니다. JSON/CSV 기능은 인터넷 없이도 동작합니다.</p>
+      <input type="file" id="file-import" multiple accept=".json,.csv,.xlsx">
+      <div class="btn-row">
+        <button class="btn" id="btn-import">가져와서 취합하기</button>
+      </div>
+      <div id="import-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0;">취합된 전체 리스트 (<span id="master-count">0</span>건)</h2>
+        <div class="btn-row" style="margin:0;">
+          <button class="btn secondary" id="btn-export-master-json">전체 백업(JSON)</button>
+          <button class="btn secondary" id="btn-export-master-xlsx">전체 내보내기(엑셀 .xlsx)</button>
+          <button class="btn secondary" id="btn-export-master-csv">전체 내보내기(CSV)</button>
+          <button class="btn danger" id="btn-clear-master">전체 삭제</button>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:10px;">
+        <div>
+          <label>날짜 필터</label>
+          <input type="date" id="filter-date">
+        </div>
+        <div>
+          <label>선사 필터</label>
+          <input type="text" id="filter-carrier" placeholder="비워두면 전체">
+        </div>
+      </div>
+      <div id="master-table-wrap"><p class="small">아직 취합된 항목이 없습니다.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= 탭3: 각서 생성 ================= -->
+  <section id="tab-doc" class="tab">
+    <div class="card">
+      <h2>각서 생성 조건</h2>
+      <div class="grid">
+        <div>
+          <label>반납요청일자 *</label>
+          <input type="date" id="doc-date">
+        </div>
+        <div>
+          <label>수신처 (예: OO선사 OO사무소)</label>
+          <input type="text" id="doc-recipient" placeholder="설정 탭의 기본값 사용 가능">
+        </div>
+      </div>
+      <p class="small">해당 날짜의 취합 리스트 전체를 10건 단위로 나누어 문서를 생성합니다. 10건이 넘으면 문서가 여러 장으로 자동 분할됩니다.</p>
+      <div class="btn-row">
+        <button class="btn" id="btn-generate-doc">각서 미리보기 생성</button>
+      </div>
+      <div class="note">
+        각서 문구는 사용자가 제공한 기존 Word 템플릿(<code>야간반납 확인각서(부산사무소).doc</code>)의 실제 문구를 그대로 사용했습니다.
+        다만 <b>법적 효력이나 문구의 최종 적합성은 이 앱이 보증하지 않습니다.</b> 회사 양식 및 법무 기준에 맞는지 실제 발송 전 반드시 직접 확인하세요. [확인 필요]
+      </div>
+    </div>
+
+    <div id="doc-preview"></div>
+
+    <div class="btn-row" id="doc-actions" style="display:none;">
+      <button class="btn" id="btn-print">인쇄 / PDF로 저장</button>
+      <button class="btn secondary" id="btn-download-doc">Word 파일로 저장 (.doc)</button>
+    </div>
+  </section>
+
+  <!-- ================= 설정 ================= -->
+  <section id="tab-settings" class="tab">
+    <div class="card">
+      <h2>기본 정보 설정</h2>
+      <p class="small">여기 입력한 값은 이 브라우저에 저장되며, 각서 생성 시 기본값으로 자동 채워집니다. 담당자 이름·연락처 등 개인정보이므로 본인이 직접 입력하세요.</p>
+      <div class="grid">
+        <div>
+          <label>운송사(발신 회사)명</label>
+          <input type="text" id="set-company">
+        </div>
+        <div>
+          <label>운송사 담당자명</label>
+          <input type="text" id="set-manager">
+        </div>
+        <div>
+          <label>연락처</label>
+          <input type="text" id="set-phone">
+        </div>
+        <div>
+          <label>기본 수신처</label>
+          <input type="text" id="set-recipient" placeholder="예: OO선사 OO사무소">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-save-settings">저장</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>구글시트 자동연동 (선택)</h2>
+      <p class="small">이 URL을 등록하면 파일을 직접 주고받지 않아도, 입력 탭에서 바로 공유 구글시트로 전송하고 취합 탭에서 새로고침만으로 최신 데이터를 받아올 수 있습니다.
+      무료 Google Apps Script로 직접 만들 수 있으며, 만드는 방법은 채팅으로 안내해드립니다. 비워두면 기존처럼 파일로 직접 주고받는 방식이 그대로 사용됩니다.</p>
+      <div class="grid">
+        <div style="grid-column: 1 / -1;">
+          <label>구글시트 연동 URL (Apps Script 웹앱 주소)</label>
+          <input type="text" id="set-sheet-url" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+        </div>
+      </div>
+      <div class="warn">이 URL을 아는 사람은 누구나 연동된 구글시트를 읽고 쓸 수 있습니다. 관련 없는 사람에게 공유하지 마세요. [확인 필요: 회사 보안 정책상 이 정도 접근 범위가 괜찮은지 검토 필요]</div>
+      <p class="small">위 URL도 <b>기본 정보 설정</b> 카드의 "저장" 버튼을 누르면 같이 저장됩니다.</p>
+    </div>
+
+    <div class="card">
+      <h2>이 브라우저에 저장된 데이터</h2>
+      <p class="small">이 앱은 서버가 없으므로 모든 데이터는 지금 이 브라우저(이 PC/이 크롬 프로필)에만 저장됩니다. 다른 브라우저나 PC에서는 보이지 않습니다.</p>
+      <button class="btn danger" id="btn-reset-all">이 브라우저의 모든 데이터 초기화</button>
+    </div>
+  </section>
+
+</main>
+
+<div id="printArea"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- 공통 유틸 ----------
+  const $ = (id) => document.getElementById(id);
+  const todayStr = () => new Date().toISOString().slice(0,10);
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+  function loadJSON(key, fallback){
+    try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+  const FIELDS = ["registrant","date","carrier","container","size","loadLoc","unloadLoc","cargo","runType","requester"];
+  const FIELD_LABEL = {
+    registrant:"등록자", date:"날짜", carrier:"선사", container:"컨테이너", size:"사이즈",
+    loadLoc:"상차지", unloadLoc:"하차지", cargo:"내품", runType:"운행여부", requester:"요청운송사"
+  };
+
+  let myList = loadJSON("yagan_myList", []);
+  let masterList = loadJSON("yagan_masterList", []);
+  let settings = loadJSON("yagan_settings", {company:"", manager:"", phone:"", recipient:"", sheetUrl:""});
+
+  // ---------- 탭 전환 ----------
+  document.querySelectorAll("nav button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+      btn.classList.add("active");
+      $(btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  // ---------- 초기값 ----------
+  $("in-date").value = todayStr();
+  $("doc-date").value = todayStr();
+  $("filter-date").value = "";
+
+  function fillSettingsForm(){
+    $("set-company").value = settings.company || "";
+    $("set-manager").value = settings.manager || "";
+    $("set-phone").value = settings.phone || "";
+    $("set-recipient").value = settings.recipient || "";
+    $("set-sheet-url").value = settings.sheetUrl || "";
+  }
+  fillSettingsForm();
+
+  $("btn-save-settings").addEventListener("click", ()=>{
+    settings = {
+      company: $("set-company").value.trim(),
+      manager: $("set-manager").value.trim(),
+      phone: $("set-phone").value.trim(),
+      recipient: $("set-recipient").value.trim(),
+      sheetUrl: $("set-sheet-url").value.trim()
+    };
+    saveJSON("yagan_settings", settings);
+    renderMyTable();
+    alert("저장되었습니다.");
+  });
+
+  $("btn-reset-all").addEventListener("click", ()=>{
+    if(!confirm("이 브라우저에 저장된 입력 리스트, 취합 리스트, 설정을 모두 삭제합니다. 계속할까요?")) return;
+    localStorage.removeItem("yagan_myList");
+    localStorage.removeItem("yagan_masterList");
+    localStorage.removeItem("yagan_settings");
+    myList = []; masterList = []; settings = {company:"",manager:"",phone:"",recipient:"",sheetUrl:""};
+    fillSettingsForm();
+    renderMyTable(); renderMasterTable();
+    alert("초기화되었습니다.");
+  });
+
+  // ---------- 탭1: 입력 ----------
+  function readForm(){
+    return {
+      id: uid(),
+      registrant: $("in-registrant").value.trim(),
+      date: $("in-date").value,
+      carrier: $("in-carrier").value.trim(),
+      container: $("in-container").value.trim(),
+      size: $("in-size").value.trim(),
+      loadLoc: $("in-loadloc").value.trim(),
+      unloadLoc: $("in-unloadloc").value.trim(),
+      cargo: $("in-cargo").value.trim(),
+      runType: $("in-runtype").value.trim(),
+      requester: $("in-requester").value.trim()
+    };
+  }
+
+  function clearForm(){
+    ["in-registrant","in-carrier","in-container","in-size","in-loadloc","in-unloadloc","in-cargo","in-runtype","in-requester"]
+      .forEach(id => $(id).value = "");
+    $("in-date").value = todayStr();
+    $("in-registrant").focus();
+  }
+  $("btn-clear-form").addEventListener("click", clearForm);
+
+  $("btn-add-entry").addEventListener("click", ()=>{
+    const e = readForm();
+    if(!e.registrant || !e.date || !e.carrier || !e.container){
+      alert("등록자, 날짜, 선사, 컨테이너 번호는 필수입니다.");
+      return;
+    }
+    myList.push(e);
+    saveJSON("yagan_myList", myList);
+    renderMyTable();
+    clearForm();
+  });
+
+  function rowToTable(list, opts){
+    opts = opts || {};
+    let html = '<table><thead><tr>';
+    FIELDS.forEach(f => html += `<th>${FIELD_LABEL[f]}</th>`);
+    if(opts.showSentStatus) html += '<th>구글시트 전송</th>';
+    html += '<th>삭제</th></tr></thead><tbody>';
+    list.forEach(item=>{
+      html += '<tr>';
+      FIELDS.forEach(f => html += `<td>${item[f] ? escapeHtml(item[f]) : ""}</td>`);
+      if(opts.showSentStatus){
+        html += item.sent ? '<td><span class="badge ok">전송됨</span></td>' : '<td><span class="badge dup">미전송</span></td>';
+      }
+      html += `<td><button class="btn danger" data-id="${item.id}" style="padding:4px 8px;font-size:12px;">삭제</button></td>`;
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderMyTable(){
+    $("my-count").textContent = myList.length;
+    const wrap = $("my-table-wrap");
+    if(myList.length === 0){ wrap.innerHTML = '<p class="small">아직 입력한 항목이 없습니다.</p>'; return; }
+    wrap.innerHTML = rowToTable(myList, {showSentStatus: !!settings.sheetUrl});
+    wrap.querySelectorAll("button[data-id]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        myList = myList.filter(x => x.id !== btn.dataset.id);
+        saveJSON("yagan_myList", myList);
+        renderMyTable();
+      });
+    });
+  }
+  renderMyTable();
+
+  // ---------- 구글시트 연동 (선택) ----------
+  async function postToSheet(entries){
+    if(!settings.sheetUrl) throw new Error("구글시트 연동 URL이 설정되지 않았습니다.");
+    const res = await fetch(settings.sheetUrl, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"}, // CORS 사전요청(preflight) 회피용
+      body: JSON.stringify(entries)
+    });
+    const data = await res.json();
+    if(!data || data.ok === false) throw new Error((data && data.error) || "전송 실패");
+    return data;
+  }
+
+  async function fetchFromSheet(){
+    if(!settings.sheetUrl) throw new Error("구글시트 연동 URL이 설정되지 않았습니다.");
+    const res = await fetch(settings.sheetUrl, {method:"GET"});
+    const data = await res.json();
+    if(!Array.isArray(data)) throw new Error("응답 형식이 올바르지 않습니다.");
+    return data;
+  }
+
+  function mergeEntriesIntoMaster(entries){
+    let added = 0, skippedDup = 0;
+    const existingKeys = new Set(masterList.map(dupKey));
+    entries.forEach(e=>{
+      if(!e.date || !e.container) return;
+      if(!e.id) e.id = uid();
+      const k = dupKey(e);
+      if(existingKeys.has(k)){ skippedDup++; return; }
+      existingKeys.add(k);
+      masterList.push(e);
+      added++;
+    });
+    saveJSON("yagan_masterList", masterList);
+    renderMasterTable();
+    return {added, skippedDup};
+  }
+
+  $("btn-send-sheet").addEventListener("click", async ()=>{
+    if(!settings.sheetUrl){ alert("설정 탭에서 먼저 '구글시트 연동 URL'을 등록하세요."); return; }
+    if(myList.length===0){ alert("전송할 항목이 없습니다."); return; }
+    $("btn-send-sheet").disabled = true;
+    $("sheet-send-result").innerHTML = '<p class="small">전송 중...</p>';
+    try{
+      await postToSheet(myList);
+      myList.forEach(e => e.sent = true);
+      saveJSON("yagan_myList", myList);
+      renderMyTable();
+      $("sheet-send-result").innerHTML = `<div class="note">구글시트로 전송 완료 (${myList.length}건)</div>`;
+    }catch(err){
+      $("sheet-send-result").innerHTML = `<div class="warn">전송 실패: ${escapeHtml(err.message)} — 인터넷 연결과 설정 탭의 URL을 확인하세요. (로컬 저장은 그대로 유지되니 나중에 다시 시도하면 됩니다)</div>`;
+    }finally{
+      $("btn-send-sheet").disabled = false;
+    }
+  });
+
+  $("btn-refresh-sheet").addEventListener("click", async ()=>{
+    if(!settings.sheetUrl){ alert("설정 탭에서 먼저 '구글시트 연동 URL'을 등록하세요."); return; }
+    $("btn-refresh-sheet").disabled = true;
+    $("sheet-refresh-result").innerHTML = '<p class="small">불러오는 중...</p>';
+    try{
+      const entries = await fetchFromSheet();
+      const {added, skippedDup} = mergeEntriesIntoMaster(entries);
+      let msg = `구글시트에서 불러오기 완료: <b>${added}건 추가</b>`;
+      if(skippedDup>0) msg += `, 중복 ${skippedDup}건 건너뜀`;
+      $("sheet-refresh-result").innerHTML = `<div class="note">${msg}</div>`;
+    }catch(err){
+      $("sheet-refresh-result").innerHTML = `<div class="warn">불러오기 실패: ${escapeHtml(err.message)} — 인터넷 연결과 설정 탭의 URL을 확인하세요.</div>`;
+    }finally{
+      $("btn-refresh-sheet").disabled = false;
+    }
+  });
+
+  function downloadBlob(filename, blob){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function download(filename, content, mime){
+    downloadBlob(filename, new Blob([content], {type: mime}));
+  }
+
+  function toCSV(list){
+    const header = FIELDS.map(f=>FIELD_LABEL[f]);
+    const rows = list.map(item => FIELDS.map(f => `"${String(item[f]||"").replace(/"/g,'""')}"`));
+    const bom = "﻿"; // 엑셀에서 한글 깨짐 방지
+    return bom + [header.join(","), ...rows.map(r=>r.join(","))].join("\r\n");
+  }
+
+  // 기존 '야간반납 리스트(24.08.23~).xlsx'와 같은 열 순서 (날짜~요청운송사), 등록자는 마지막에 추가 컬럼으로 덧붙임
+  const XLSX_FIELDS = ["date","carrier","container","size","loadLoc","unloadLoc","cargo","runType","requester","registrant"];
+
+  function ensureXLSXLoaded(){
+    if(typeof XLSX === "undefined"){
+      alert("엑셀 기능을 사용할 수 없습니다. 이 페이지를 처음 열 때 인터넷 연결이 필요합니다 (엑셀 변환 라이브러리를 불러오지 못했습니다).");
+      return false;
+    }
+    return true;
+  }
+
+  function toXLSXBlob(list){
+    const aoa = [
+      ["야간반납 신청 리스트"],
+      [],
+      XLSX_FIELDS.map(f => FIELD_LABEL[f]),
+      ...list.map(item => XLSX_FIELDS.map(f => item[f] || ""))
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "리스트");
+    const out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+    return new Blob([out], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  }
+
+  $("btn-export-json").addEventListener("click", ()=>{
+    if(myList.length===0){ alert("내보낼 항목이 없습니다."); return; }
+    const who = myList[0].registrant || "담당자";
+    const date = myList[0].date || todayStr();
+    download(`야간반납_${who}_${date}.json`, JSON.stringify(myList, null, 2), "application/json");
+  });
+  $("btn-export-xlsx-my").addEventListener("click", ()=>{
+    if(!ensureXLSXLoaded()) return;
+    if(myList.length===0){ alert("내보낼 항목이 없습니다."); return; }
+    downloadBlob(`야간반납_${myList[0].registrant||"담당자"}_${myList[0].date||todayStr()}.xlsx`, toXLSXBlob(myList));
+  });
+  $("btn-export-csv-my").addEventListener("click", ()=>{
+    if(myList.length===0){ alert("내보낼 항목이 없습니다."); return; }
+    download(`야간반납_${myList[0].registrant||"담당자"}_${myList[0].date||todayStr()}.csv`, toCSV(myList), "text/csv;charset=utf-8");
+  });
+
+  // ---------- 탭2: 가져오기/취합 ----------
+  function dupKey(e){ return (e.date||"") + "|" + (e.container||"").trim().toUpperCase(); }
+
+  function parseCSV(text){
+    // 간단한 CSV 파서 (콤마+따옴표 처리). 첫 줄은 헤더로 간주.
+    const rows = [];
+    let i=0, field="", row=[], inQuotes=false;
+    text = text.replace(/^﻿/, "");
+    while(i < text.length){
+      const c = text[i];
+      if(inQuotes){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field += '"'; i+=2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      } else {
+        if(c === '"'){ inQuotes = true; i++; continue; }
+        if(c === ','){ row.push(field); field=""; i++; continue; }
+        if(c === '\r'){ i++; continue; }
+        if(c === '\n'){ row.push(field); rows.push(row); field=""; row=[]; i++; continue; }
+        field += c; i++; continue;
+      }
+    }
+    if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(v => v && v.trim() !== ""));
+  }
+
+  // 표 형태(배열의 배열)에서 '날짜','선사','컨테이너' 등 열 제목이 있는 행을 헤더로 자동 인식
+  // (엑셀 원본은 1행 제목, 2행 공백, 3행이 실제 헤더라서 고정된 행 번호로는 찾을 수 없음)
+  function findHeaderRowIndex(rows){
+    const labels = new Set(Object.values(FIELD_LABEL));
+    for(let i=0; i<rows.length; i++){
+      const hits = (rows[i]||[]).filter(v => labels.has(String(v||"").trim())).length;
+      if(hits >= 3) return i;
+    }
+    return -1;
+  }
+
+  function arrayRowsToEntries(rows){
+    const headerIdx = findHeaderRowIndex(rows);
+    if(headerIdx === -1) return [];
+    const header = rows[headerIdx].map(h => String(h||"").trim());
+    const labelToField = {};
+    Object.entries(FIELD_LABEL).forEach(([f,label]) => labelToField[label] = f);
+    const colMap = header.map(h => labelToField[h] || null);
+    const out = [];
+    for(let r=headerIdx+1; r<rows.length; r++){
+      const rowArr = rows[r] || [];
+      if(rowArr.every(v => String(v||"").trim() === "")) continue;
+      const entry = { id: uid() };
+      colMap.forEach((f, idx) => { if(f) entry[f] = String(rowArr[idx]!=null ? rowArr[idx] : "").trim(); });
+      if(entry.date && entry.container) out.push(entry);
+    }
+    return out;
+  }
+
+  $("btn-import").addEventListener("click", async ()=>{
+    const files = $("file-import").files;
+    if(!files || files.length===0){ alert("가져올 파일을 선택하세요."); return; }
+    let allEntries = [], invalidFiles = 0;
+
+    for(const file of files){
+      const lower = file.name.toLowerCase();
+      let entries = [];
+      try{
+        if(lower.endsWith(".json")){
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          entries = Array.isArray(parsed) ? parsed : [parsed];
+        } else if(lower.endsWith(".xlsx")){
+          if(!ensureXLSXLoaded()){ invalidFiles++; continue; }
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, {type:"array", cellDates:true});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, dateNF:"yyyy-mm-dd", defval:""});
+          entries = arrayRowsToEntries(rows);
+        } else {
+          const text = await file.text();
+          entries = arrayRowsToEntries(parseCSV(text));
+        }
+      }catch(e){
+        invalidFiles++; continue;
+      }
+      allEntries = allEntries.concat(entries);
+    }
+
+    const {added, skippedDup} = mergeEntriesIntoMaster(allEntries);
+    let msg = `<div class="note">가져오기 완료: <b>${added}건 추가</b>`;
+    if(skippedDup>0) msg += `, <span style="color:var(--danger)">중복 ${skippedDup}건 건너뜀(같은 날짜+같은 컨테이너 번호가 이미 있음)</span>`;
+    if(invalidFiles>0) msg += `, 형식을 읽지 못한 파일 ${invalidFiles}개`;
+    msg += `</div>`;
+    $("import-result").innerHTML = msg;
+    $("file-import").value = "";
+  });
+
+  function currentFilteredMaster(){
+    const d = $("filter-date").value;
+    const c = $("filter-carrier").value.trim().toLowerCase();
+    return masterList.filter(e => (!d || e.date === d) && (!c || (e.carrier||"").toLowerCase().includes(c)));
+  }
+
+  function renderMasterTable(){
+    $("master-count").textContent = masterList.length;
+    const list = currentFilteredMaster();
+    const wrap = $("master-table-wrap");
+    if(masterList.length === 0){ wrap.innerHTML = '<p class="small">아직 취합된 항목이 없습니다.</p>'; return; }
+    if(list.length === 0){ wrap.innerHTML = '<p class="small">필터 조건에 맞는 항목이 없습니다.</p>'; return; }
+    wrap.innerHTML = rowToTable(list);
+    wrap.querySelectorAll("button[data-id]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        if(!confirm("이 항목을 취합 리스트에서 삭제할까요?")) return;
+        masterList = masterList.filter(x => x.id !== btn.dataset.id);
+        saveJSON("yagan_masterList", masterList);
+        renderMasterTable();
+      });
+    });
+  }
+  $("filter-date").addEventListener("change", renderMasterTable);
+  $("filter-carrier").addEventListener("input", renderMasterTable);
+  renderMasterTable();
+
+  $("btn-export-master-json").addEventListener("click", ()=>{
+    if(masterList.length===0){ alert("내보낼 항목이 없습니다."); return; }
+    download(`야간반납_취합_${todayStr()}.json`, JSON.stringify(masterList, null, 2), "application/json");
+  });
+  $("btn-export-master-xlsx").addEventListener("click", ()=>{
+    if(!ensureXLSXLoaded()) return;
+    if(masterList.length===0){ alert("내보낼 항목이 없습니다."); return; }
+    downloadBlob(`야간반납_취합_${todayStr()}.xlsx`, toXLSXBlob(masterList));
+  });
+  $("btn-export-master-csv").addEventListener("click", ()=>{
+    if(masterList.length===0){ alert("내보낼 항목이 없습니다."); return; }
+    download(`야간반납_취합_${todayStr()}.csv`, toCSV(masterList), "text/csv;charset=utf-8");
+  });
+  $("btn-clear-master").addEventListener("click", ()=>{
+    if(!confirm("취합된 전체 리스트를 삭제합니다. 되돌릴 수 없습니다. 계속할까요?")) return;
+    masterList = [];
+    saveJSON("yagan_masterList", masterList);
+    renderMasterTable();
+  });
+
+  // ---------- 탭3: 각서 생성 ----------
+  function formatKoreanDate(dateStr){
+    if(!dateStr) return "";
+    const [y,m,d] = dateStr.split("-");
+    return `${y}년 ${parseInt(m,10)}월 ${parseInt(d,10)}일`;
+  }
+  function formatKoreanDatePadded(dateStr){
+    if(!dateStr) return "";
+    const [y,m,d] = dateStr.split("-");
+    return `${y}년  ${m}월 ${d}일`;
+  }
+
+  function buildDocHTML(entries, dateStr, recipient){
+    // 원본 Word 각서(야간반납 컨테이너 손상 확인서) 문구를 그대로 사용.
+    const chunks = [];
+    for(let i=0; i<entries.length; i+=10) chunks.push(entries.slice(i, i+10));
+    if(chunks.length === 0) chunks.push([]);
+
+    const s = settings;
+    let html = "";
+    chunks.forEach((chunk, idx)=>{
+      html += `<div class="doc-page">`;
+      if(chunks.length>1) html += `<p class="doc-page-title">문서 ${idx+1} / ${chunks.length}</p>`;
+      html += `<h3>야간반납 컨테이너 손상 확인서</h3>`;
+      html += `<div class="doc-meta">
+        <div>수신 : ${escapeHtml(recipient||"")}</div>
+        <div>참조 : </div>
+        <div>발신 : ${escapeHtml(s.company||"")}</div>
+        <div>제목 : 야간반납 컨테이너 손상 확인서</div>
+      </div>`;
+      html += `<p>표제건 관련하여 하기와 같은 내용으로 귀사의 컨테이너를 야간반납하고자 하오니 선처하여 주시기 바랍니다.</p>`;
+      html += `<div>반납요청일자 : ${formatKoreanDate(dateStr)}</div>`;
+      html += `<table class="doc-table"><thead><tr>
+        <th>선사</th><th>컨테이너</th><th>사이즈</th><th>반출지</th><th>확인반납지</th><th>내품</th>
+      </tr></thead><tbody>`;
+      for(let r=0; r<10; r++){
+        const e = chunk[r];
+        html += "<tr>" + [
+          e ? escapeHtml(e.carrier) : "",
+          e ? escapeHtml(e.container) : "",
+          e ? escapeHtml(e.size) : "",
+          e ? escapeHtml(e.loadLoc) : "",
+          e ? escapeHtml(e.unloadLoc) : "",
+          e ? escapeHtml(e.cargo) : ""
+        ].map(v=>`<td>${v||""}</td>`).join("") + "</tr>";
+      }
+      html += `</tbody></table>`;
+      html += `<p>상기 컨테이너에 대해 야간반납이 허용된 귀사 측 터미널로 반납하고자 하오니 승인하여 주시기 바랍니다.</p>`;
+      html += `<p>상기 컨테이너는 당사에서 검사한 결과, 손상이 없고 화물운송에 아무런 하자가 없는 상태임을 보증하며,
+      반납 후 귀사 측 검사 결과 발견되는 모든 컨테이너 손상 수리비 전액을 당사에서 책임지고 지불할 것을 확인하는 바입니다.
+      또한, 수리 비용 청구날짜 기준 수리비용 미정산 7일 경과 시, 야간반입이 불허되는 점에 대해 양지하며, 기한 내 정산할 것을 확약합니다.</p>`;
+      html += `<div class="doc-footer">
+        <div>${formatKoreanDatePadded(dateStr)}</div>
+        <div>운송사 담당자명 : ${escapeHtml(s.manager||"")}</div>
+        <div>연락처 : ${escapeHtml(s.phone||"")}</div>
+        <div>운송사 직인/명판 : (인쇄 후 직접 날인)</div>
+      </div>`;
+      html += `</div>`;
+    });
+    return html;
+  }
+
+  let lastDocHTML = "";
+
+  $("doc-recipient").addEventListener("focus", function(){
+    if(!this.value && settings.recipient) this.value = settings.recipient;
+  });
+
+  $("btn-generate-doc").addEventListener("click", ()=>{
+    const dateStr = $("doc-date").value;
+    if(!dateStr){ alert("반납요청일자를 선택하세요."); return; }
+    const recipient = $("doc-recipient").value.trim() || settings.recipient || "";
+    const entries = masterList.filter(e => e.date === dateStr);
+    if(entries.length === 0){
+      $("doc-preview").innerHTML = `<div class="warn">취합 리스트에 ${dateStr} 날짜의 항목이 없습니다. '가져오기·취합' 탭에서 먼저 데이터를 취합하세요.</div>`;
+      $("doc-actions").style.display = "none";
+      return;
+    }
+    lastDocHTML = buildDocHTML(entries, dateStr, recipient);
+    $("doc-preview").innerHTML = lastDocHTML;
+    $("doc-actions").style.display = "flex";
+  });
+
+  $("btn-print").addEventListener("click", ()=>{
+    if(!lastDocHTML){ alert("먼저 각서 미리보기를 생성하세요."); return; }
+    $("printArea").innerHTML = lastDocHTML;
+    window.print();
+  });
+
+  $("btn-download-doc").addEventListener("click", ()=>{
+    if(!lastDocHTML){ alert("먼저 각서 미리보기를 생성하세요."); return; }
+    const wrapped = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"><style>
+        body{font-family:'맑은 고딕',sans-serif;font-size:13px;}
+        table{border-collapse:collapse;width:100%;}
+        td,th{border:1px solid #333;padding:5px;}
+        h3{text-align:center;}
+      </style></head>
+      <body>${lastDocHTML}</body></html>`;
+    download(`야간반납_각서_${$("doc-date").value}.doc`, wrapped, "application/msword");
+  });
+
+})();
+</script>
+</body>
+</html>

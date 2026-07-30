@@ -47,16 +47,28 @@
   .small{font-size:12px;color:var(--muted);}
   .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
 
-  /* 각서 미리보기 (실제 인쇄/저장 대상) */
-  .doc-page{background:#fff;border:1px solid var(--border);padding:40px;margin:0 auto 24px;max-width:760px;font-size:14px;line-height:1.7;}
-  .doc-page h3{text-align:center;font-size:19px;margin-bottom:24px;}
-  .doc-meta{margin-bottom:14px;}
-  .doc-meta div{margin-bottom:4px;}
-  .doc-table{width:100%;border-collapse:collapse;margin:16px 0;}
-  .doc-table th,.doc-table td{border:1px solid #333;padding:6px;font-size:12.5px;}
-  .doc-table th{background:#f0f0f0;}
-  .doc-footer{margin-top:28px;}
-  .doc-footer div{margin-bottom:4px;}
+  /* 각서 미리보기 (실제 인쇄/저장 대상) - 실제 Word 템플릿에서 추출한 이미지/색상/서식을 최대한 그대로 반영 */
+  .doc-page{background:#fff;border:1px solid var(--border);padding:40px;margin:0 auto 24px;max-width:760px;font-size:13px;line-height:1.6;color:#000;}
+  .doc-header-table{width:100%;border-collapse:collapse;margin-bottom:6px;}
+  .doc-header-table td{border:none;padding:0;vertical-align:top;}
+  .doc-header-left{width:70px;text-align:center;}
+  .doc-header-left img.doc-logo{width:56px;height:auto;}
+  .doc-header-left img.doc-website{width:80px;height:auto;margin-top:3px;}
+  .doc-header-center{text-align:center;padding:8px 6px 0 !important;}
+  .doc-header-center img{max-width:100%;height:auto;}
+  .doc-header-right{width:100px;text-align:right;padding-top:4px !important;}
+  .doc-header-right img{width:90px;height:auto;}
+  .doc-title{margin:2px 0 10px;}
+  .doc-meta{margin-bottom:10px;}
+  .doc-meta div{margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #000;}
+  .doc-underline{border-bottom:1px solid #000;padding-bottom:2px;display:inline-block;}
+  .doc-table{width:100%;border-collapse:collapse;margin:14px 0;}
+  .doc-table th,.doc-table td{border:1px solid #333;padding:5px;font-size:12px;}
+  .doc-table th{background:#FDE9D9;}
+  .doc-footer-table{border-collapse:collapse;margin-top:20px;}
+  .doc-footer-table td{border:none;padding:3px 8px;vertical-align:top;font-size:13px;}
+  .doc-footer-table td.doc-stamp-cell{text-align:right;}
+  .doc-footer-table img.doc-stamp{width:100px;height:auto;}
   .doc-page-title{font-weight:bold;margin:0 0 8px;color:var(--muted);font-size:12px;}
 
   @media print{
@@ -86,11 +98,25 @@
   <!-- ================= 탭1: 입력 ================= -->
   <section id="tab-input" class="tab active">
     <div class="card">
-      <h2>오늘 반납 항목 입력</h2>
-      <p class="small">담당자 각자 자신의 브라우저에서 입력하세요. 입력한 내용은 이 브라우저에만 자동 저장됩니다(다른 사람 화면과 공유되지 않음).</p>
+      <h2>엑셀에서 여러 건 한번에 붙여넣기 (권장)</h2>
+      <p class="small">본인 엑셀 파일에서 표(제목행 포함 또는 미포함 모두 가능)를 마우스로 드래그해서 선택 → <b>Ctrl+C</b> → 아래 칸을 클릭하고 <b>Ctrl+V</b>로 붙여넣기 → 버튼 클릭.</p>
+      <p class="small">담당자마다 엑셀 열 구성이 달라도 괜찮습니다. 제목행에 "날짜/선사/컨테이너/사이즈/상차지/하차지/내품" 같은 이름이 있으면 순서와 상관없이 자동으로 인식합니다.
+      제목행이 없다면 <b>날짜, 선사, 컨테이너, 사이즈, 상차지, 하차지, 내품, (선택)운행여부, (선택)요청운송사 순서</b>로 붙여넣은 것으로 간주합니다. 앞의 7개 항목은 필수이며, 값이 없는 행은 건너뜁니다 (등록자·운행여부·요청운송사는 입력 안 해도 빈칸으로 처리됩니다).
+      <b>오늘 날짜(<span id="paste-today-label"></span>) 항목만 자동으로 들어가고</b>, 엑셀에 다른 날짜 기록이 섞여 있어도 자동으로 걸러집니다.</p>
+      <textarea id="paste-area" rows="6" placeholder="여기에 엑셀 표를 붙여넣으세요 (Ctrl+V)"></textarea>
+      <div class="btn-row">
+        <button class="btn" id="btn-paste-add">붙여넣은 내용 목록에 추가</button>
+        <button class="btn secondary" id="btn-paste-clear">붙여넣기 칸 지우기</button>
+      </div>
+      <div id="paste-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>한 건씩 직접 입력</h2>
+      <p class="small">담당자 각자 자신의 브라우저에서 입력하세요. 입력한 내용은 이 브라우저에만 자동 저장됩니다(다른 사람 화면과 공유되지 않음). <b>*</b> 표시는 필수 항목입니다.</p>
       <div class="grid">
         <div>
-          <label>등록자(담당자명) *</label>
+          <label>등록자(담당자명)</label>
           <input type="text" id="in-registrant" placeholder="예: 홍길동">
         </div>
         <div>
@@ -106,19 +132,19 @@
           <input type="text" id="in-container" placeholder="예: SKRHALU2026582">
         </div>
         <div>
-          <label>사이즈</label>
+          <label>사이즈 *</label>
           <input type="text" id="in-size" placeholder="예: 20D / 40RE">
         </div>
         <div>
-          <label>상차지</label>
+          <label>상차지 *</label>
           <input type="text" id="in-loadloc" placeholder="예: 신선대">
         </div>
         <div>
-          <label>하차지</label>
+          <label>하차지 *</label>
           <input type="text" id="in-unloadloc" placeholder="예: 신선대">
         </div>
         <div>
-          <label>내품</label>
+          <label>내품 *</label>
           <input type="text" id="in-cargo" placeholder="예: HAIR BAND">
         </div>
         <div>
@@ -134,6 +160,9 @@
         <button class="btn" id="btn-add-entry">+ 목록에 추가</button>
         <button class="btn secondary" id="btn-clear-form">입력 지우기</button>
       </div>
+      <div id="input-warn"></div>
+      <div class="note">참고: 사이즈는 자동으로 정리됩니다 — 40R/40RF/40RE 같은 리퍼 계열은 <b>40R</b>로, 40HC/40H/20DC 같은 나머지는 <b>숫자만(40, 20)</b>으로 저장됩니다.
+      선사 <b>HAS</b> + 리퍼 사이즈(40R/20R)는 입력이 차단됩니다. 하루 총 10건, 선사 SKR+리퍼 사이즈는 하루 2건을 넘으면 경고가 표시됩니다(입력 자체는 막지 않음).</div>
     </div>
 
     <div class="card">
@@ -304,6 +333,54 @@
     registrant:"등록자", date:"날짜", carrier:"선사", container:"컨테이너", size:"사이즈",
     loadLoc:"상차지", unloadLoc:"하차지", cargo:"내품", runType:"운행여부", requester:"요청운송사"
   };
+  // 필수 입력 항목 (등록자·운행여부·요청운송사는 선택)
+  const REQUIRED_FIELDS = ["date","carrier","container","size","loadLoc","unloadLoc","cargo"];
+  // 붙여넣은 표에 제목행이 없을 때 이 순서로 열을 간주함 (운행여부·요청운송사는 8,9번째, 없어도 됨)
+  const PASTE_DEFAULT_ORDER = ["date","carrier","container","size","loadLoc","unloadLoc","cargo","runType","requester"];
+
+  // ---------- 입력 제약 규칙 ----------
+  const DAILY_LIMIT = 10;                 // 하루 총 입력 건수 제한(경고만, 차단 아님)
+  const SKR_REEFER_DAILY_LIMIT = 2;       // 선사 SKR + 리퍼 사이즈 하루 제한(경고만, 차단 아님)
+  // 사이즈 정규화 후에는 리퍼 계열이 항상 "40R"/"20R" 형태로만 남는다.
+  const REEFER_SIZES = new Set(["40R","20R"]);
+
+  function normSize(size){ return String(size||"").trim().toUpperCase(); }
+  function normCarrier(carrier){ return String(carrier||"").trim().toUpperCase(); }
+
+  // 사이즈 입력값 정리: 앞 숫자는 그대로 두고, 뒤에 R로 시작하는 표기(R/RF/RE 등)는 "R"로 통일,
+  // 그 외 표기(HC/H/DC/D 등)는 전부 지우고 숫자만 남긴다. 예) 40RF,40RE,40R → 40R / 40HC,40H,20DC → 40,20
+  function normalizeSizeInput(raw){
+    const s = String(raw||"").trim().toUpperCase();
+    const m = s.match(/^(\d+)\s*([A-Z]*)/);
+    if(!m) return s;
+    const num = m[1];
+    const suffix = m[2] || "";
+    return suffix.startsWith("R") ? (num + "R") : num;
+  }
+
+  // 선사 HAS + 리퍼 사이즈는 아예 입력 불가(차단)
+  function isCarrierSizeBlocked(carrier, size){
+    return normCarrier(carrier) === "HAS" && REEFER_SIZES.has(normSize(size));
+  }
+
+  // 같은 날짜의 현재 myList 기준으로 한도 초과 여부를 확인해 경고 문구 목록을 반환 (차단하지 않음)
+  function buildDailyWarnings(dateStr){
+    const dayEntries = myList.filter(e => e.date === dateStr);
+    const warnings = [];
+    if(dayEntries.length > DAILY_LIMIT){
+      warnings.push(`오늘(${dateStr}) 입력 건수가 ${dayEntries.length}건으로 하루 제한(${DAILY_LIMIT}건)을 초과했습니다.`);
+    }
+    const skrReeferCount = dayEntries.filter(e => normCarrier(e.carrier) === "SKR" && REEFER_SIZES.has(normSize(e.size))).length;
+    if(skrReeferCount > SKR_REEFER_DAILY_LIMIT){
+      warnings.push(`선사 SKR + 리퍼 사이즈(40R/20R) 항목이 오늘 ${skrReeferCount}건으로 하루 제한(${SKR_REEFER_DAILY_LIMIT}건)을 초과했습니다.`);
+    }
+    return warnings;
+  }
+
+  function renderWarnBox(elId, warnings){
+    const el = $(elId);
+    el.innerHTML = warnings.map(w => `<div class="warn">${escapeHtml(w)}</div>`).join("");
+  }
 
   let myList = loadJSON("yagan_myList", []);
   let masterList = loadJSON("yagan_masterList", []);
@@ -323,6 +400,7 @@
   $("in-date").value = todayStr();
   $("doc-date").value = todayStr();
   $("filter-date").value = "";
+  $("paste-today-label").textContent = todayStr();
 
   function fillSettingsForm(){
     $("set-company").value = settings.company || "";
@@ -365,7 +443,7 @@
       date: $("in-date").value,
       carrier: $("in-carrier").value.trim(),
       container: $("in-container").value.trim(),
-      size: $("in-size").value.trim(),
+      size: normalizeSizeInput($("in-size").value),
       loadLoc: $("in-loadloc").value.trim(),
       unloadLoc: $("in-unloadloc").value.trim(),
       cargo: $("in-cargo").value.trim(),
@@ -382,15 +460,26 @@
   }
   $("btn-clear-form").addEventListener("click", clearForm);
 
+  // 사이즈 입력칸에서 포커스가 빠지면 바로 정리된 값으로 보여줌 (40RF -> 40R, 40HC -> 40 등)
+  $("in-size").addEventListener("blur", function(){
+    if(this.value.trim()) this.value = normalizeSizeInput(this.value);
+  });
+
   $("btn-add-entry").addEventListener("click", ()=>{
     const e = readForm();
-    if(!e.registrant || !e.date || !e.carrier || !e.container){
-      alert("등록자, 날짜, 선사, 컨테이너 번호는 필수입니다.");
+    const missing = REQUIRED_FIELDS.filter(f => !e[f]);
+    if(missing.length > 0){
+      alert("다음 항목은 필수입니다: " + missing.map(f=>FIELD_LABEL[f]).join(", "));
+      return;
+    }
+    if(isCarrierSizeBlocked(e.carrier, e.size)){
+      alert("입력 불가: 선사 HAS + 리퍼 사이즈(40R/20R) 조합은 입력할 수 없습니다.");
       return;
     }
     myList.push(e);
     saveJSON("yagan_myList", myList);
     renderMyTable();
+    renderWarnBox("input-warn", buildDailyWarnings(e.date));
     clearForm();
   });
 
@@ -568,8 +657,8 @@
   // ---------- 탭2: 가져오기/취합 ----------
   function dupKey(e){ return (e.date||"") + "|" + (e.container||"").trim().toUpperCase(); }
 
-  function parseCSV(text){
-    // 간단한 CSV 파서 (콤마+따옴표 처리). 첫 줄은 헤더로 간주.
+  function parseDelimited(text, delim){
+    // 간단한 구분자 파서 (구분자+따옴표 처리). delim: ',' (CSV) 또는 '\t' (엑셀 붙여넣기)
     const rows = [];
     let i=0, field="", row=[], inQuotes=false;
     text = text.replace(/^﻿/, "");
@@ -583,7 +672,7 @@
         field += c; i++; continue;
       } else {
         if(c === '"'){ inQuotes = true; i++; continue; }
-        if(c === ','){ row.push(field); field=""; i++; continue; }
+        if(c === delim){ row.push(field); field=""; i++; continue; }
         if(c === '\r'){ i++; continue; }
         if(c === '\n'){ row.push(field); rows.push(row); field=""; row=[]; i++; continue; }
         field += c; i++; continue;
@@ -592,6 +681,7 @@
     if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
     return rows.filter(r => r.some(v => v && v.trim() !== ""));
   }
+  function parseCSV(text){ return parseDelimited(text, ","); }
 
   // 표 형태(배열의 배열)에서 '날짜','선사','컨테이너' 등 열 제목이 있는 행을 헤더로 자동 인식
   // (엑셀 원본은 1행 제목, 2행 공백, 3행이 실제 헤더라서 고정된 행 번호로는 찾을 수 없음)
@@ -621,6 +711,90 @@
     }
     return out;
   }
+
+  // 여러 날짜 표기 방식을 yyyy-MM-dd로 통일. 인식 못하면 null 반환.
+  function normalizeDateToISO(str){
+    if(!str) return null;
+    str = String(str).trim();
+    let m = str.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
+    if(m) return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
+    m = str.match(/^(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일?$/);
+    if(m) return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
+    m = str.match(/^(\d{1,2})\s*월\s*(\d{1,2})\s*일?$/);
+    if(m) return `${new Date().getFullYear()}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+    m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m) return `${m[3]}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+    return null;
+  }
+
+  // 엑셀에서 복사해 붙여넣은 표(탭으로 구분됨)를 항목으로 변환.
+  // 제목행이 있으면 열 이름으로 자동 인식(순서 무관), 없으면 PASTE_DEFAULT_ORDER 순서로 간주.
+  // 날짜가 오늘이 아닌 행은 자동으로 제외한다(담당자 엑셀에 지난 기록이 섞여 있어도 당일 것만 들어오도록).
+  function pasteRowsToEntries(text, defaultRegistrant){
+    const rows = parseDelimited(text, "\t");
+    if(rows.length === 0) return {entries: [], skippedMissing: 0, skippedOtherDate: 0, skippedBlocked: 0};
+
+    const headerIdx = findHeaderRowIndex(rows);
+    let colMap, dataRows;
+    if(headerIdx !== -1){
+      const header = rows[headerIdx].map(h => String(h||"").trim());
+      const labelToField = {};
+      Object.entries(FIELD_LABEL).forEach(([f,label]) => labelToField[label] = f);
+      colMap = header.map(h => labelToField[h] || null);
+      dataRows = rows.slice(headerIdx + 1);
+    } else {
+      colMap = PASTE_DEFAULT_ORDER;
+      dataRows = rows;
+    }
+
+    const today = todayStr();
+    const entries = [];
+    let skippedMissing = 0, skippedOtherDate = 0, skippedBlocked = 0;
+    dataRows.forEach(rowArr => {
+      if(!rowArr || rowArr.every(v => String(v||"").trim() === "")) return;
+      const entry = { id: uid() };
+      colMap.forEach((f, idx) => { if(f) entry[f] = String(rowArr[idx]!=null ? rowArr[idx] : "").trim(); });
+      if(entry.size) entry.size = normalizeSizeInput(entry.size);
+      const missing = REQUIRED_FIELDS.some(f => !entry[f]);
+      if(missing){ skippedMissing++; return; }
+      const normDate = normalizeDateToISO(entry.date);
+      if(!normDate || normDate !== today){ skippedOtherDate++; return; }
+      if(isCarrierSizeBlocked(entry.carrier, entry.size)){ skippedBlocked++; return; }
+      entry.date = normDate;
+      if(!entry.registrant) entry.registrant = defaultRegistrant || "";
+      entries.push(entry);
+    });
+    return {entries, skippedMissing, skippedOtherDate, skippedBlocked};
+  }
+
+  $("btn-paste-add").addEventListener("click", ()=>{
+    const text = $("paste-area").value;
+    if(!text.trim()){ alert("붙여넣은 내용이 없습니다."); return; }
+    const defaultRegistrant = $("in-registrant").value.trim();
+    const {entries, skippedMissing, skippedOtherDate, skippedBlocked} = pasteRowsToEntries(text, defaultRegistrant);
+    if(entries.length > 0){
+      myList = myList.concat(entries);
+      saveJSON("yagan_myList", myList);
+      renderMyTable();
+    }
+    let msg = `<div class="note">붙여넣기 완료: <b>${entries.length}건 추가</b> (오늘 날짜: ${todayStr()})`;
+    if(skippedMissing > 0) msg += `, <span style="color:var(--danger)">${skippedMissing}건 건너뜀(필수값 누락)</span>`;
+    if(skippedOtherDate > 0) msg += `, <span style="color:var(--muted)">${skippedOtherDate}건 건너뜀(오늘 날짜가 아니거나 날짜 인식 불가)</span>`;
+    if(skippedBlocked > 0) msg += `, <span style="color:var(--danger)">${skippedBlocked}건 입력 불가(선사 HAS + 리퍼 사이즈 40R/20R)</span>`;
+    msg += `</div>`;
+    $("paste-result").innerHTML = msg;
+    if(entries.length > 0){
+      $("paste-area").value = "";
+      const datesTouched = Array.from(new Set(entries.map(e => e.date)));
+      const warnings = datesTouched.flatMap(d => buildDailyWarnings(d));
+      renderWarnBox("input-warn", warnings);
+    }
+  });
+
+  $("btn-paste-clear").addEventListener("click", ()=>{
+    $("paste-area").value = "";
+    $("paste-result").innerHTML = "";
+  });
 
   $("btn-import").addEventListener("click", async ()=>{
     const files = $("file-import").files;
@@ -708,6 +882,14 @@
   });
 
   // ---------- 탭3: 각서 생성 ----------
+  // 실제 Word 템플릿(야간반납 확인각서(부산사무소).doc)에서 추출한 로고/인증마크/직인 이미지.
+  // 지어낸 것이 아니라 원본 문서에 실제로 삽입되어 있던 이미지를 그대로 가져온 것입니다.
+  const DOC_IMG_LOGO = "data:image/jpeg;base64,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";
+  const DOC_IMG_BADGES = "data:image/jpeg;base64,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";
+  const DOC_IMG_BANNER = "data:image/jpeg;base64,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";
+  const DOC_IMG_WEBSITE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAoHBwkHBgoJCAkLCwoMDxkQDw4ODx4WFxIZJCAmJSMgIyIoLTkwKCo2KyIjMkQyNjs9QEBAJjBGS0U+Sjk/QD3/wAALCAAPAGQBAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/APZq5zUPFZ06TUUawkma1cCMI6jzRiLdyTwQZV69e3erOmeI01KVYvsc8MpjV9rlCD8sbNgg/wAIlX69s1Qj8b28K+bqMYtoGVCsmcjLc4P0T5j7KxqSbx1p0JVGhuvtDKHWAIPMKnaQcZ/ukt9Ec9qu6f4nsdUgu5rLzJo7VSWZFyGOWwF9SQoYeodT3qovjK23wl7ecJLCJT90mJdzKS2Gweg4GTzSXnjKK1SB/sdwRLOkYX5csjq+xxzgAmM/eIwOTirEfiiKV4ESxu2knmREQBM7GDssh+bAXEbH19uafceJI4Z3iSzuZsSmGNk2YkZRlwMsMbQDnOOhxmmX3ieG0udLVIJJodRieSNkGCoAU5OcADaxPrxgA1paZff2lptveeRLbidA4jlxvUHpnBI6e9WqKp3OkWF2JRcWkMgmz5m5fvZ25z/3wn/fIqtb+GtMtUukhtwouQFbB+6oUKAvoMKKQeGdLa2NvcWqXMRbdicBsHyxGcfVRj8TUzaDpb3QuWsLczhQok2DOApUDP8Ausw+hNLb6FplpbNb29jBHCxBZFQBThdgyP8AdAH4UiaFpkYASxgGF2fc5xnOPzpy6LpyK6izh2ySGVht6sQQT/48fzNLb6RYWn+otIo/3hlyF/iIIJ/Jj+ZqOXw/pcxkMtjCxk27iRydoAXn2AH5CppNLspseZaxNjplen3enp91fyqxHGkMSRxqFRAFVR0AHQU+v//Z";
+  const DOC_IMG_STAMP = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAoHBwkHBgoJCAkLCwoMDxkQDw4ODx4WFxIZJCAmJSMgIyIoLTkwKCo2KyIjMkQyNjs9QEBAJjBGS0U+Sjk/QD3/2wBDAQsLCw8NDx0QEB09KSMpPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT3/wAARCAAsAHoDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD01YbhZfOKSr5IYDLF8EjsCfekWJUQRwOZY4Y3ADoSecdc9ec1rT7jbybc52nGKxrpQbwsEzt6ZXtgY4/irohLmKWo6GB3R0UEbUOREMgkkcdfbpx1NPjjkjMvySqWiKqpBxkntycClc4uZBlgSdu4feJJHUZ5A7cUjAi9bHP7znLNknP8qd2wLdrl51Y7gRCFIPYg8/yqjdlzeyHGQp9wOg6jOT+FW3PmRzC4EgYt+7XOOcdBg04iTyJo97blICsMluAuf8+9QnZ3AZPHvkKC2lEh5DiTA7c/epdY3/YwEdky2DtOCeOlNjEjxOQZAOmMuc889eR+FMYyrDOGmbhF+8Ogyc8Hr/XFNbryArhXNgivJKx8z5SXORgA47D9asR7ZMPKzBCzFVLEYOAMZzz3pVmLQbWPmD5cZcIO/wDQdKlhMmwYfgOg4bd7Gm2wK7bltlM5XjqA5z0XpyKu2kYW1ZUkJBJ5DZxn0qrdSubZk3thm2l1brnPHPQ0/T2fai7iwVivJzxj/HH51MruIC2SSrLAXklYfZ8EMeM5HP1qa9v47FYzIrsZG2qEAzVW+vbj7JJJboPL37fMBycdCQPrWde3bCK2SdDJKpyAOTt65Ye2OaybubU6Lk02dFFKs0SyRnKsMg0+uc+zzX9vbLaXb262zNuIyAeeOAf0NbB1BQceTcHHcRnmkROlbYouyBZFiudQ84ISoZWP0P3fWn3D3WSVe5yI1MQjjBV2xzuyOOfpTmghZWeK+nWQqQGL9MDPTH40TQieYyLLFKNgBWQsAuOpGP8ACui6IFa8kiuLzznYJHGhAVeQT1wTx1oc3oX901wW4wHWLHXvinW0DC3kCyQyiXlYySUAHXrk0yOybzWcw2bb8FQCeAPTil7oE1z54vIkjujGJc4XYpxgVDcSzhpHSWQGOURhVVTuBC8kHv1796nms5Jbg3G5RJGR5PoB3z9f8Ka0UcyXMbMuGfecpuAwB6/SpTWghBdSrMkZ3D7mSygE5Jz/ACpJ3unkIgyyq3z7oug9Bnqaclm6mFo5I2QEHHlgfLyePzp8tludGSWYZfL/AL5hxg9OfXFF4pgRyzmPTS6jzZm+VFaPaWbsMGpEuFZrYw7QkpO4Aeg/xqO5MUCKgvDCyHO9/nPPHVqS1idp1kS5WZFZt4MYXBI6jA60WVrgMW8me7OQTCW2YONmc4+9t9f1psuqC1s7YyOFkkdRnZwQXCn2B5p4s7j7WJBFCsed2wysQGzndjGM1G+n5iRL1kFtDGxABJO85+b8B09zVe7oPQx7ua5Op3Nvc/u4/L8wRgEhwG54z6fyq3IhuZm2IEcpshVzkAHuB/CeDTYXubnUfNk2yr5Pkbo1Pzck7sHHbHXjNWwiomIZ2jfguq8l8cZAHfis5JJ2OpTdhkSCxCjzG2htpDsASTjkducYFWA8OOYbkH03NSx3W8MtzFyvJLR4GM/Kee/tUS6hbBRlk6dzz/KlcztJt3ROYbhrw3HkyDIPyBxx8uB7ZzmmRw3RjZXhkH7pRhnUqSOorWoqvaPsYXKCrOJPNWEguWIUkfLnaBn8iadbwSRyxK2dsSMm7jDDjH+fartFLnC4jEBST0x3rBjW2e7lf92zoCUIj4BKkfJ6ccGt+iiMrXBMjt/+PeL/AHB/KpKKKgRkX0oNzKrmNwu0CKRiAc98dKuae2Y3HnrKA3GG3bfbNW6KtzurDuFZWuKrrCrTQx4YkhyFZhjorEHHOO1atJjNKL5XcSMLRTHLKXjkiQSRfLHuVpVPc5wMfTmrkOmPBvAlLIEIQHru9frWjilonLmdy1NrYoW1q7PK1wFKSZGw8jrUwsLYD/VD8zVmipE5s//Z";
+
   function formatKoreanDate(dateStr){
     if(!dateStr) return "";
     const [y,m,d] = dateStr.split("-");
@@ -730,7 +912,15 @@
     chunks.forEach((chunk, idx)=>{
       html += `<div class="doc-page">`;
       if(chunks.length>1) html += `<p class="doc-page-title">문서 ${idx+1} / ${chunks.length}</p>`;
-      html += `<h3>야간반납 컨테이너 손상 확인서</h3>`;
+      html += `<table class="doc-header-table"><tr>
+        <td class="doc-header-left">
+          <img class="doc-logo" src="${DOC_IMG_LOGO}" alt="선사 로고"><br>
+          <img class="doc-website" src="${DOC_IMG_WEBSITE}" alt="">
+        </td>
+        <td class="doc-header-center"><img src="${DOC_IMG_BANNER}" alt="선사명"></td>
+        <td class="doc-header-right"><img src="${DOC_IMG_BADGES}" alt="인증마크"></td>
+      </tr></table>`;
+      html += `<p class="doc-title">야간반납 컨테이너 손상 확인서</p>`;
       html += `<div class="doc-meta">
         <div>수신 : ${escapeHtml(recipient||"")}</div>
         <div>참조 : </div>
@@ -738,7 +928,7 @@
         <div>제목 : 야간반납 컨테이너 손상 확인서</div>
       </div>`;
       html += `<p>표제건 관련하여 하기와 같은 내용으로 귀사의 컨테이너를 야간반납하고자 하오니 선처하여 주시기 바랍니다.</p>`;
-      html += `<div>반납요청일자 : ${formatKoreanDate(dateStr)}</div>`;
+      html += `<p><span class="doc-underline"><b>반납요청일자 : ${formatKoreanDate(dateStr)}</b></span></p>`;
       html += `<table class="doc-table"><thead><tr>
         <th>선사</th><th>컨테이너</th><th>사이즈</th><th>반출지</th><th>확인반납지</th><th>내품</th>
       </tr></thead><tbody>`;
@@ -756,14 +946,15 @@
       html += `</tbody></table>`;
       html += `<p>상기 컨테이너에 대해 야간반납이 허용된 귀사 측 터미널로 반납하고자 하오니 승인하여 주시기 바랍니다.</p>`;
       html += `<p>상기 컨테이너는 당사에서 검사한 결과, 손상이 없고 화물운송에 아무런 하자가 없는 상태임을 보증하며,
-      반납 후 귀사 측 검사 결과 발견되는 모든 컨테이너 손상 수리비 전액을 당사에서 책임지고 지불할 것을 확인하는 바입니다.
-      또한, 수리 비용 청구날짜 기준 수리비용 미정산 7일 경과 시, 야간반입이 불허되는 점에 대해 양지하며, 기한 내 정산할 것을 확약합니다.</p>`;
-      html += `<div class="doc-footer">
-        <div>${formatKoreanDatePadded(dateStr)}</div>
-        <div>운송사 담당자명 : ${escapeHtml(s.manager||"")}</div>
-        <div>연락처 : ${escapeHtml(s.phone||"")}</div>
-        <div>운송사 직인/명판 : (인쇄 후 직접 날인)</div>
-      </div>`;
+      반납 후 귀사 측 검사 결과 발견되는 <u>모든 컨테이너 손상 수리비 전액을 당사에서 책임지고 지불할 것</u>을 확인하는 바입니다.
+      또한, 수리 비용 청구날짜 기준 <u style="color:red">수리비용 미정산 7일 경과 시,</u> 야간반입이 불허되는 점에 대해 양지하며, 기한 내 정산할 것을 확약합니다.</p>`;
+      html += `<p style="text-align:center;">${formatKoreanDatePadded(dateStr)}</p>`;
+      html += `<table class="doc-footer-table" align="right"><tbody>
+        <tr><td>운송사 담당자명</td><td>${escapeHtml(s.manager||"")}</td></tr>
+        <tr><td>연락처</td><td>${escapeHtml(s.phone||"")}</td></tr>
+        <tr><td>운송사 직인/명판</td><td class="doc-stamp-cell"><img class="doc-stamp" src="${DOC_IMG_STAMP}" alt="직인"></td></tr>
+      </tbody></table>
+      <div style="clear:both;"></div>`;
       html += `</div>`;
     });
     return html;
@@ -802,9 +993,24 @@
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="UTF-8"><style>
         body{font-family:'맑은 고딕',sans-serif;font-size:13px;}
-        table{border-collapse:collapse;width:100%;}
-        td,th{border:1px solid #333;padding:5px;}
-        h3{text-align:center;}
+        .doc-header-table{width:100%;border-collapse:collapse;margin-bottom:6px;}
+        .doc-header-table td{border:none;padding:0;vertical-align:top;}
+        .doc-header-left{width:70px;text-align:center;}
+        .doc-header-left img.doc-logo{width:56px;height:auto;}
+        .doc-header-left img.doc-website{width:80px;height:auto;margin-top:3px;}
+        .doc-header-center{text-align:center;padding-top:8px;}
+        .doc-header-right{width:100px;text-align:right;padding-top:4px;}
+        .doc-header-right img{width:90px;height:auto;}
+        .doc-title{margin:2px 0 10px;}
+        .doc-meta div{margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #000;}
+        .doc-underline{border-bottom:1px solid #000;padding-bottom:2px;}
+        .doc-table{border-collapse:collapse;width:100%;margin:14px 0;}
+        .doc-table td,.doc-table th{border:1px solid #333;padding:5px;}
+        .doc-table th{background:#FDE9D9;}
+        .doc-footer-table{border-collapse:collapse;margin-top:20px;}
+        .doc-footer-table td{border:none;padding:3px 8px;vertical-align:top;}
+        .doc-footer-table td.doc-stamp-cell{text-align:right;}
+        .doc-footer-table img.doc-stamp{width:100px;height:auto;}
       </style></head>
       <body>${lastDocHTML}</body></html>`;
     download(`야간반납_각서_${$("doc-date").value}.doc`, wrapped, "application/msword");

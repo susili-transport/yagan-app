@@ -701,6 +701,17 @@
     return -1;
   }
 
+  // 엑셀 날짜 셀은 서식이 "07월 31일"처럼 연도를 안 보여주는 경우가 있어서, cellDates:true로 읽은
+  // 실제 Date 객체(연도 포함)를 직접 넘겨야 한다 — 화면 표시 텍스트(raw:false)에 의존하면 연도가 사라져서
+  // 다른 해의 같은 월/일 데이터를 오늘 날짜로 착각하는 버그가 생긴다(2026-08-01 실사용 중 발견).
+  function cellToStr(v){
+    if(v instanceof Date){
+      const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,"0"), d = String(v.getDate()).padStart(2,"0");
+      return `${y}-${m}-${d}`;
+    }
+    return String(v!=null ? v : "").trim();
+  }
+
   function arrayRowsToEntries(rows){
     const headerIdx = findHeaderRowIndex(rows);
     if(headerIdx === -1) return [];
@@ -713,7 +724,7 @@
       const rowArr = rows[r] || [];
       if(rowArr.every(v => String(v||"").trim() === "")) continue;
       const entry = { id: uid() };
-      colMap.forEach((f, idx) => { if(f) entry[f] = String(rowArr[idx]!=null ? rowArr[idx] : "").trim(); });
+      colMap.forEach((f, idx) => { if(f) entry[f] = cellToStr(rowArr[idx]); });
       if(entry.date && entry.container) out.push(entry);
     }
     return out;
@@ -763,7 +774,7 @@
     dataRows.forEach(rowArr => {
       if(!rowArr || rowArr.every(v => String(v||"").trim() === "")) return;
       const entry = { id: uid() };
-      colMap.forEach((f, idx) => { if(f) entry[f] = String(rowArr[idx]!=null ? rowArr[idx] : "").trim(); });
+      colMap.forEach((f, idx) => { if(f) entry[f] = cellToStr(rowArr[idx]); });
       if(entry.size) entry.size = normalizeSizeInput(entry.size);
       const missing = REQUIRED_FIELDS.some(f => !entry[f]);
       if(missing){ skippedMissing++; return; }
@@ -815,7 +826,7 @@
       const buf = await xlsxFile.arrayBuffer();
       const wb = XLSX.read(buf, {type:"array", cellDates:true});
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, dateNF:"yyyy-mm-dd", defval:""});
+      rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:""});
     }catch(err){
       alert("엑셀 파일을 읽지 못했습니다. 파일이 손상되지 않았는지 확인하세요.");
       return;
@@ -882,7 +893,7 @@
           const buf = await file.arrayBuffer();
           const wb = XLSX.read(buf, {type:"array", cellDates:true});
           const sheet = wb.Sheets[wb.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, dateNF:"yyyy-mm-dd", defval:""});
+          const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:""});
           entries = arrayRowsToEntries(rows);
         } else {
           const text = await file.text();

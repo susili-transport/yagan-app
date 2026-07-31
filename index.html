@@ -701,10 +701,23 @@
     return -1;
   }
 
-  // 엑셀 날짜 셀은 서식이 "07월 31일"처럼 연도를 안 보여주는 경우가 있어서, cellDates:true로 읽은
-  // 실제 Date 객체(연도 포함)를 직접 넘겨야 한다 — 화면 표시 텍스트(raw:false)에 의존하면 연도가 사라져서
-  // 다른 해의 같은 월/일 데이터를 오늘 날짜로 착각하는 버그가 생긴다(2026-08-01 실사용 중 발견).
-  function cellToStr(v){
+  // 엑셀 날짜 셀은 서식이 "07월 31일"처럼 연도를 안 보여주는 경우가 있어서 화면 표시 텍스트(raw:false)에
+  // 의존하면 연도가 사라져 다른 해의 같은 월/일 데이터를 오늘 날짜로 착각하는 버그가 생긴다.
+  // 그렇다고 SheetJS의 cellDates:true(자동 Date 변환)도 쓰면 안 된다 — 실사용 파일로 검증해보니 정수
+  // 시리얼(예: 46234 = 2026-07-31 00:00:00)을 "07-30 23:59:08"처럼 하루 전 값으로 잘못 변환하는 경우가
+  // 있었다(2026-08-01 실사용 중 발견). 그래서 cellDates 없이 raw 시리얼 숫자를 직접 받아서
+  // 엑셀 1900 날짜 시스템 공식으로 우리가 직접 변환한다(정수로 반올림 후 UTC 기준 계산 — 이 방식은
+  // .NET의 [DateTime]::FromOADate() 결과와 실제 파일로 대조 확인함).
+  function excelSerialToISO(serial){
+    const rounded = Math.round(serial);
+    const ms = Date.UTC(1899,11,30) + rounded*86400000;
+    const d = new Date(ms);
+    const y = d.getUTCFullYear(), m = String(d.getUTCMonth()+1).padStart(2,"0"), day = String(d.getUTCDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function cellToStr(v, fieldName){
+    if(fieldName === "date" && typeof v === "number") return excelSerialToISO(v);
     if(v instanceof Date){
       const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,"0"), d = String(v.getDate()).padStart(2,"0");
       return `${y}-${m}-${d}`;
@@ -724,7 +737,7 @@
       const rowArr = rows[r] || [];
       if(rowArr.every(v => String(v||"").trim() === "")) continue;
       const entry = { id: uid() };
-      colMap.forEach((f, idx) => { if(f) entry[f] = cellToStr(rowArr[idx]); });
+      colMap.forEach((f, idx) => { if(f) entry[f] = cellToStr(rowArr[idx], f); });
       if(entry.date && entry.container) out.push(entry);
     }
     return out;
@@ -774,7 +787,7 @@
     dataRows.forEach(rowArr => {
       if(!rowArr || rowArr.every(v => String(v||"").trim() === "")) return;
       const entry = { id: uid() };
-      colMap.forEach((f, idx) => { if(f) entry[f] = cellToStr(rowArr[idx]); });
+      colMap.forEach((f, idx) => { if(f) entry[f] = cellToStr(rowArr[idx], f); });
       if(entry.size) entry.size = normalizeSizeInput(entry.size);
       const missing = REQUIRED_FIELDS.some(f => !entry[f]);
       if(missing){ skippedMissing++; return; }
@@ -824,7 +837,7 @@
     let rows;
     try{
       const buf = await xlsxFile.arrayBuffer();
-      const wb = XLSX.read(buf, {type:"array", cellDates:true});
+      const wb = XLSX.read(buf, {type:"array"});
       const sheet = wb.Sheets[wb.SheetNames[0]];
       rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:""});
     }catch(err){
@@ -891,7 +904,7 @@
         } else if(lower.endsWith(".xlsx")){
           if(!ensureXLSXLoaded()){ invalidFiles++; continue; }
           const buf = await file.arrayBuffer();
-          const wb = XLSX.read(buf, {type:"array", cellDates:true});
+          const wb = XLSX.read(buf, {type:"array"});
           const sheet = wb.Sheets[wb.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:""});
           entries = arrayRowsToEntries(rows);

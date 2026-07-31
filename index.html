@@ -100,7 +100,7 @@
     <div class="card">
       <h2>엑셀에서 여러 건 한번에 붙여넣기 (권장)</h2>
       <p class="small">본인 엑셀 파일에서 표(제목행 포함 또는 미포함 모두 가능)를 마우스로 드래그해서 선택 → <b>Ctrl+C</b> → 아래 칸을 클릭하고 <b>Ctrl+V</b>로 붙여넣기 → 버튼 클릭.
-      (또는 탐색기에서 <b>엑셀 파일 자체를 Ctrl+C</b>한 뒤 이 칸에 <b>Ctrl+V</b>해도 자동으로 인식되어 바로 추가됩니다.)</p>
+      (또는 탐색기에서 <b>엑셀 파일 자체를 Ctrl+C</b>한 뒤 이 칸에 <b>Ctrl+V</b>하거나, 파일을 이 칸으로 <b>마우스로 드래그해서 놓아도</b> 자동으로 인식되어 바로 추가됩니다.)</p>
       <p class="small">담당자마다 엑셀 열 구성이 달라도 괜찮습니다. 제목행에 "날짜/선사/컨테이너/사이즈/상차지/하차지/내품" 같은 이름이 있으면 순서와 상관없이 자동으로 인식합니다.
       제목행이 없다면 <b>날짜, 선사, 컨테이너, 사이즈, 상차지, 하차지, 내품, (선택)운행여부, (선택)요청운송사 순서</b>로 붙여넣은 것으로 간주합니다. 앞의 7개 항목은 필수이며, 값이 없는 행은 건너뜁니다 (등록자·운행여부·요청운송사는 입력 안 해도 빈칸으로 처리됩니다).
       <b>오늘 날짜(<span id="paste-today-label"></span>) 항목만 자동으로 들어가고</b>, 엑셀에 다른 날짜 기록이 섞여 있어도 자동으로 걸러집니다.</p>
@@ -806,13 +806,8 @@
     $("paste-result").innerHTML = "";
   });
 
-  // 셀 범위 복사 대신 엑셀 파일 자체(탐색기에서 Ctrl+C)를 이 칸에 붙여넣은 경우 자동 인식해서 처리
-  $("paste-area").addEventListener("paste", async (e)=>{
-    const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
-    const xlsxFile = files.find(f => /\.xlsx$/i.test(f.name));
-    if(!xlsxFile) return; // 파일이 아니라 일반 셀 텍스트면 기존 동작 그대로
-
-    e.preventDefault();
+  // 셀 범위 복사 대신 엑셀 파일 자체(탐색기에서 Ctrl+C, 또는 드래그앤드롭)로 넣은 경우 자동 인식해서 처리
+  async function handleDroppedXlsxFile(xlsxFile){
     if(!ensureXLSXLoaded()) return;
 
     let rows;
@@ -844,6 +839,28 @@
       const warnings = datesTouched.flatMap(d => buildDailyWarnings(d));
       renderWarnBox("input-warn", warnings);
     }
+  }
+
+  $("paste-area").addEventListener("paste", (e)=>{
+    const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
+    const xlsxFile = files.find(f => /\.xlsx$/i.test(f.name));
+    if(!xlsxFile) return; // 파일이 아니라 일반 셀 텍스트면 기존 동작 그대로
+    e.preventDefault();
+    handleDroppedXlsxFile(xlsxFile);
+  });
+
+  ["dragenter","dragover"].forEach(evt => {
+    $("paste-area").addEventListener(evt, (e)=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    });
+  });
+  $("paste-area").addEventListener("drop", (e)=>{
+    e.preventDefault();
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    const xlsxFile = files.find(f => /\.xlsx$/i.test(f.name));
+    if(!xlsxFile){ alert("엑셀(.xlsx) 파일만 드래그해서 놓을 수 있습니다."); return; }
+    handleDroppedXlsxFile(xlsxFile);
   });
 
   $("btn-import").addEventListener("click", async ()=>{

@@ -359,9 +359,10 @@
   const PASTE_DEFAULT_ORDER = ["date","carrier","container","size","loadLoc","unloadLoc","cargo","runType","requester"];
 
   // ---------- 입력 제약 규칙 ----------
-  const DAILY_LIMIT = 10;                 // 하루 총 입력 건수 제한(경고만, 차단 아님)
-  const SKR_REEFER_DAILY_LIMIT = 2;       // 선사 SKR + 리퍼 사이즈 하루 제한(경고만, 차단 아님)
-  // 사이즈 정규화 후에는 리퍼 계열이 항상 "40R"/"20R" 형태로만 남는다.
+  const DAILY_LIMIT = 10;                 // 하루 총 등록 대수 제한(회사 전체, 냉동컨테이너 포함) - 초과 시 등록 차단
+  const SKR_REEFER_DAILY_LIMIT = 2;       // 선사 SKR + 리퍼 사이즈 하루 제한(회사 전체) - 초과 시 등록 차단
+  // 사이즈 정규화(normalizeSizeInput) 후에는 리퍼 계열이 항상 "40R"/"20R" 형태로만 남는다
+  // (40RF/40RE/20RF/20RE 등도 입력 시점에 이 형태로 정리됨).
   const REEFER_SIZES = new Set(["40R","20R"]);
 
   function normSize(size){ return String(size||"").trim().toUpperCase(); }
@@ -485,7 +486,42 @@
     if(this.value.trim()) this.value = normalizeSizeInput(this.value);
   });
 
-  $("btn-add-entry").addEventListener("click", ()=>{
+  // 오늘 등록 한도(회사 전체, 여러 담당자 합산) 초과 여부를 등록 버튼을 누른 시점에 실시간으로 확인한다.
+  // 이 브라우저의 myList만 보면 다른 담당자가 등록한 건수를 알 수 없어 실제 회사 전체 10대 한도를
+  // 지킬 수 없으므로, 구글시트(공유 저장소)에서 오늘 자 전체 등록 현황을 매번 새로 가져와 판단한다
+  // (2026-08-19, 사용자 확인 - 구글시트 실시간 조회 방식으로 확정).
+  // 조회 실패(네트워크 문제, Apps Script 간헐적 지연 - project_yagan_banap_webapp에 이미 기록된 이슈) 시에는
+  // 이 브라우저에 알려진 값(masterList, 마지막 새로고침 시점 기준)으로 대체 판단하고, 그 사실을 안내문에 남긴다.
+  async function getTodayCombinedEntries(){
+    const today = todayStr();
+    let combined = null;
+    let source = "sheet";
+    if(settings.sheetUrl){
+      try{
+        const sheetEntries = await fetchFromSheet();
+        combined = sheetEntries.filter(e => e && e.date === today);
+      }catch(err){
+        combined = null;
+      }
+    }
+    if(!combined){
+      combined = masterList.filter(e => e.date === today);
+      source = "local";
+    }
+    // 아직 구글시트에 전송/취합되지 않은 이 브라우저 자체 입력분도 함께 셈한다(중복은 date+container로 제외).
+    const keys = new Set(combined.map(dupKey));
+    myList.filter(e => e.date === today).forEach(e=>{
+      const k = dupKey(e);
+      if(!keys.has(k)){ keys.add(k); combined.push(e); }
+    });
+    return {entries: combined, source};
+  }
+
+  function countSkrReefer(entries){
+    return entries.filter(x => normCarrier(x.carrier) === "SKR" && REEFER_SIZES.has(normSize(x.size))).length;
+  }
+
+  $("btn-add-entry").addEventListener("click", async ()=>{
     const e = readForm();
     const missing = REQUIRED_FIELDS.filter(f => !e[f]);
     if(missing.length > 0){
@@ -496,6 +532,32 @@
       alert("입력 불가: 선사 HAS + 리퍼 사이즈(40R/20R) 조합은 입력할 수 없습니다.");
       return;
     }
+
+    const btn = $("btn-add-entry");
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "오늘 등록 현황 확인 중...";
+    let check;
+    try{
+      check = await getTodayCombinedEntries();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+
+    const todayEntries = check.entries;
+    const sourceNote = check.source === "sheet" ? "" : " (구글시트 조회 실패 또는 미설정 - 이 브라우저에 알려진 데이터 기준이라 실제 전체 건수와 다를 수 있음)";
+    const isSkrReefer = normCarrier(e.carrier) === "SKR" && REEFER_SIZES.has(normSize(e.size));
+
+    if(todayEntries.length + 1 > DAILY_LIMIT){
+      alert(`등록할 수 없습니다: 오늘(${e.date}) 등록 대수가 하루 한도(${DAILY_LIMIT}대, 냉동컨테이너 포함)를 초과합니다. 현재까지 확인된 등록 건수: ${todayEntries.length}건.${sourceNote}`);
+      return;
+    }
+    if(isSkrReefer && countSkrReefer(todayEntries) + 1 > SKR_REEFER_DAILY_LIMIT){
+      alert(`등록할 수 없습니다: 선사 SKR 냉동컨테이너(40R/40RF/20R/20RF)는 하루 ${SKR_REEFER_DAILY_LIMIT}대까지만 가능합니다. 현재까지 확인된 건수: ${countSkrReefer(todayEntries)}건.${sourceNote}`);
+      return;
+    }
+
     myList.push(e);
     saveJSON("yagan_myList", myList);
     renderMyTable();

@@ -253,6 +253,16 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2>PC 자동 처리 요청 (eTrans 검증 + 메일초안 + 리스트반영)</h2>
+      <p class="small">위 미리보기는 이 브라우저에서만 보이는 확인용입니다. 실제 eTrans 검증, Outlook 메일 초안 작성, 야간반납 리스트(xlsx) 반영까지 자동으로 처리하려면 아래 버튼을 눌러주세요 — 사무실 PC가 신호를 확인해서 <b>최대 1분 이내</b>에 처리합니다(PC가 켜져 있어야 합니다).</p>
+      <p class="small">같은 날짜로 <b>취소·추가 등 변경이 생겨 다시 요청</b>해도 괜찮습니다 — 기존 메일 초안은 그대로 두고, 최신 내용을 담은 <b>[정정분 - 최신]</b> 초안이 새로 하나 더 만들어집니다. 발송 전 어느 게 최신인지 제목으로 확인하고, 이전 초안은 직접 삭제해주세요.</p>
+      <div class="btn-row">
+        <button class="btn" id="btn-request-generate">각서 생성 요청 (PC 자동 처리)</button>
+      </div>
+      <div id="request-generate-result"></div>
+    </div>
+
     <div id="doc-preview"></div>
 
     <div class="btn-row" id="doc-actions" style="display:none;">
@@ -631,6 +641,19 @@
     const res = await fetch(settings.sheetUrl, {method:"GET"});
     const data = await res.json();
     if(!Array.isArray(data)) throw new Error("응답 형식이 올바르지 않습니다.");
+    return data;
+  }
+
+  // {action:...} 형태의 단일 객체 요청 (구글시트 항목 배열 전송인 postToSheet와는 별개).
+  async function postSheetAction(actionObj){
+    if(!settings.sheetUrl) throw new Error("구글시트 연동 URL이 설정되지 않았습니다.");
+    const res = await fetch(settings.sheetUrl, {
+      method: "POST",
+      headers: {"Content-Type": "text/plain;charset=utf-8"}, // CORS 사전요청(preflight) 회피용
+      body: JSON.stringify(actionObj)
+    });
+    const data = await res.json();
+    if(!data || data.ok === false) throw new Error((data && data.error) || "요청 실패");
     return data;
   }
 
@@ -1160,6 +1183,24 @@
     lastDocHTML = buildDocHTML(entries, dateStr, recipient);
     $("doc-preview").innerHTML = lastDocHTML;
     $("doc-actions").style.display = "flex";
+  });
+
+  $("btn-request-generate").addEventListener("click", async ()=>{
+    const dateStr = $("doc-date").value;
+    if(!dateStr){ alert("반납요청일자를 선택하세요."); return; }
+    if(!settings.sheetUrl){ alert("설정 탭에서 먼저 '구글시트 연동 URL'을 등록하세요."); return; }
+    const btn = $("btn-request-generate");
+    const resultEl = $("request-generate-result");
+    btn.disabled = true;
+    resultEl.innerHTML = '<p class="small">요청 전송 중...</p>';
+    try{
+      await postSheetAction({action:"requestGenerate", date: dateStr});
+      resultEl.innerHTML = `<div class="note">요청 완료 (${dateStr}). 사무실 PC가 최대 1분 이내에 확인 후 eTrans 검증·각서생성·메일초안·리스트반영을 자동으로 처리합니다. PC가 꺼져 있으면 켜진 뒤 다음 확인 주기에 처리됩니다.</div>`;
+    }catch(err){
+      resultEl.innerHTML = `<div class="warn">요청 전송 실패: ${escapeHtml(err.message)}</div>`;
+    }finally{
+      btn.disabled = false;
+    }
   });
 
   $("btn-print").addEventListener("click", ()=>{

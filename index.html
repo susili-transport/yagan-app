@@ -614,7 +614,19 @@
     if(myList.length === 0){ wrap.innerHTML = '<p class="small">아직 입력한 항목이 없습니다.</p>'; return; }
     wrap.innerHTML = rowToTable(myList, {showSentStatus: !!settings.sheetUrl});
     wrap.querySelectorAll("button[data-id]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
+      btn.addEventListener("click", async ()=>{
+        const item = myList.find(x => x.id === btn.dataset.id);
+        if (item && item.sent && settings.sheetUrl) {
+          if (!confirm("이미 구글시트로 전송된 항목입니다. 캔슬 처리하면 구글시트에서도 함께 삭제됩니다. 계속할까요?")) return;
+          btn.disabled = true;
+          try {
+            await postSheetAction({action:"deleteEntry", date: item.date, container: item.container});
+          } catch (err) {
+            alert("구글시트에서 삭제 실패: " + err.message + "\n(취소되지 않았습니다. 인터넷 연결을 확인하고 다시 시도하세요)");
+            btn.disabled = false;
+            return;
+          }
+        }
         myList = myList.filter(x => x.id !== btn.dataset.id);
         saveJSON("yagan_myList", myList);
         renderMyTable();
@@ -1052,8 +1064,23 @@
     if(list.length === 0){ wrap.innerHTML = '<p class="small">필터 조건에 맞는 항목이 없습니다.</p>'; return; }
     wrap.innerHTML = rowToTable(list);
     wrap.querySelectorAll("button[data-id]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        if(!confirm("이 항목을 취합 리스트에서 삭제할까요?")) return;
+      btn.addEventListener("click", async ()=>{
+        const item = masterList.find(x => x.id === btn.dataset.id);
+        const willDeleteFromSheet = !!(item && settings.sheetUrl);
+        const msg = willDeleteFromSheet
+          ? "이 항목을 취합 리스트와 구글시트에서 모두 삭제할까요? (캔슬 처리)"
+          : "이 항목을 취합 리스트에서 삭제할까요?";
+        if(!confirm(msg)) return;
+        if (willDeleteFromSheet) {
+          btn.disabled = true;
+          try {
+            await postSheetAction({action:"deleteEntry", date: item.date, container: item.container});
+          } catch (err) {
+            alert("구글시트에서 삭제 실패: " + err.message + "\n(취소되지 않았습니다. 인터넷 연결을 확인하고 다시 시도하세요)");
+            btn.disabled = false;
+            return;
+          }
+        }
         masterList = masterList.filter(x => x.id !== btn.dataset.id);
         saveJSON("yagan_masterList", masterList);
         renderMasterTable();

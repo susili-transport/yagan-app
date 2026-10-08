@@ -177,7 +177,7 @@
         <button class="btn secondary" id="btn-clear-form">입력 지우기</button>
       </div>
       <div id="input-warn"></div>
-      <div class="note">선사 <b>HAS</b> + 리퍼 사이즈(40R/40RF/20R/20RF)는 입력이 차단됩니다. 하루 총 10건, 선사 SKR+리퍼 사이즈는 하루 2건을 넘으면 경고가 표시됩니다(입력 자체는 막지 않음).
+      <div class="note">선사 <b>HAS</b> + 리퍼 사이즈(40R/40RF/20R/20RF)는 입력이 차단됩니다. 하루 총 20건까지 등록할 수 있고, 선사 SKR+리퍼 사이즈는 하루 2건을 넘으면 등록이 차단됩니다.
       (엑셀/표 붙여넣기·파일 가져오기로 입력하는 경우엔 여기 목록과 별개로 사이즈 표기가 자동으로 정리됩니다 — 40RE 등 리퍼 계열은 40R로, 40HC 등 나머지는 숫자만으로 저장됩니다.)</div>
     </div>
 
@@ -384,7 +384,7 @@
   const PASTE_DEFAULT_ORDER = ["date","carrier","container","size","loadLoc","unloadLoc","cargo","runType","requester"];
 
   // ---------- 입력 제약 규칙 ----------
-  const DAILY_LIMIT = 10;                 // 하루 총 등록 대수 제한(회사 전체, 냉동컨테이너 포함) - 초과 시 등록 차단
+  const DAILY_LIMIT = 20;                 // 하루 총 등록 대수 제한(회사 전체, 냉동컨테이너 포함) - 초과 시 등록 차단 (2026-10-08: 10→20, PC 각서 생성의 표 수용 한도 maxRows=20과 맞춤)
   const SKR_REEFER_DAILY_LIMIT = 2;       // 선사 SKR + 리퍼 사이즈 하루 제한(회사 전체) - 초과 시 등록 차단
   // 한 건씩 직접 입력(드롭다운)은 정규화 없이 이 4개 표기 그대로 저장되므로 전부 명시해야 한다.
   // 엑셀/붙여넣기 등 자유 입력 경로는 normalizeSizeInput이 RF/RE 등을 R로 정리해서 여기 걸린다.
@@ -507,7 +507,7 @@
   $("btn-clear-form").addEventListener("click", clearForm);
 
   // 오늘 등록 한도(회사 전체, 여러 담당자 합산) 초과 여부를 등록 버튼을 누른 시점에 실시간으로 확인한다.
-  // 이 브라우저의 myList만 보면 다른 담당자가 등록한 건수를 알 수 없어 실제 회사 전체 10대 한도를
+  // 이 브라우저의 myList만 보면 다른 담당자가 등록한 건수를 알 수 없어 실제 회사 전체 하루 한도(DAILY_LIMIT)를
   // 지킬 수 없으므로, 구글시트(공유 저장소)에서 오늘 자 전체 등록 현황을 매번 새로 가져와 판단한다
   // (2026-08-19, 사용자 확인 - 구글시트 실시간 조회 방식으로 확정).
   // 조회 실패(네트워크 문제, Apps Script 간헐적 지연 - project_yagan_banap_webapp에 이미 기록된 이슈) 시에는
@@ -609,7 +609,7 @@
   }
 
   // 날짜가 바뀌면 지난 날짜 항목은 화면/저장소에서 자동으로 정리하고 오늘 날짜만 남긴다.
-  // (하루 10건 한도를 담당자가 바로 확인할 수 있어야 해서, 지난 데이터가 섞여 보이면 안 됨)
+  // (하루 등록 한도를 담당자가 바로 확인할 수 있어야 해서, 지난 데이터가 섞여 보이면 안 됨)
   function pruneToToday(list, storageKey){
     const today = todayStr();
     const kept = list.filter(e => e.date === today);

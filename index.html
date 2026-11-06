@@ -448,6 +448,23 @@
   $("filter-date").value = "";
   $("paste-today-label").textContent = todayStr();
 
+  // 2026-11-06 버그 수정: 위 날짜 기본값은 페이지를 처음 열 때 한 번만 정해져서, 화면(탭/홈화면 앱)을
+  // 켜둔 채 하루가 지나면 어제 날짜가 그대로 남아 "각서 생성 요청"이 어제 날짜로 전송됐다. 날짜가 바뀐
+  // 걸 감지하면, 사용자가 직접 다른 날짜로 바꿔두지 않은 칸(=이전 기본값 그대로인 칸)만 오늘로 갱신한다.
+  let defaultDay = todayStr();
+  function refreshDefaultDates(){
+    const now = todayStr();
+    if(now === defaultDay) return;
+    ["in-date", "doc-date"].forEach(id=>{
+      if($(id).value === defaultDay) $(id).value = now;
+    });
+    $("paste-today-label").textContent = now;
+    defaultDay = now;
+  }
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refreshDefaultDates(); });
+  window.addEventListener("focus", refreshDefaultDates);
+  setInterval(refreshDefaultDates, 60000);
+
   function fillSettingsForm(){
     $("set-company").value = settings.company || "";
     $("set-manager").value = settings.manager || "";
@@ -1232,6 +1249,7 @@
     const dateStr = $("doc-date").value;
     if(!dateStr){ alert("반납요청일자를 선택하세요."); return; }
     if(!settings.sheetUrl){ alert("설정 탭에서 먼저 '구글시트 연동 URL'을 등록하세요."); return; }
+    if(dateStr !== todayStr() && !confirm(`반납요청일자가 오늘(${todayStr()})이 아니라 ${dateStr} 입니다.\n이 날짜로 각서 생성을 요청할까요?`)) return;
     const btn = $("btn-request-generate");
     const resultEl = $("request-generate-result");
     btn.disabled = true;
